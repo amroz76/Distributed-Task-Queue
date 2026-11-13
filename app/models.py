@@ -37,6 +37,12 @@ class JobDetails(BaseModel):
     id: str
     task: str
     args: SumNumbersArgs
-    status: str
+    status: Literal["queued", "running", "succeeded", "failed"]
     attempts: int
     created_at: str
+
+    started_at: str | None = None
+    finished_at: str | None = None
+    worker_id: str | None = None
+    result: float | None = None
+    error: str | None = None

@@ -10,6 +10,10 @@ from app.models import JobCreate, JobDetails
 # All work messages go into this Redis stream.
 STREAM_KEY = "jobs"
 
+def utc_now() -> str:
+    # Use timezone-aware UTC timestamps so API and worker machines agree
+    # on how times should be interpreted.
+    return datetime.now(timezone.utc).isoformat()
 
 async def create_job(redis: Redis, request: JobCreate) -> str:
     # Generate an application job ID independently of Redis's stream entry ID.
@@ -50,6 +54,8 @@ async def get_job(redis: Redis, job_id: str) -> JobDetails | None:
     if not job_data:
         return None
 
+    result_json = job_data.get("result")
+
     # Convert Redis's stored strings back into the API's structured data.
     return JobDetails(
         id=job_data["id"],
@@ -58,4 +64,9 @@ async def get_job(redis: Redis, job_id: str) -> JobDetails | None:
         status=job_data["status"],
         attempts=int(job_data["attempts"]),
         created_at=job_data["created_at"],
+        started_at=job_data.get("started_at"),
+        finished_at=job_data.get("finished_at"),
+        worker_id=job_data.get("worker_id"),
+        result=json.loads(result_json) if result_json is not None else None,
+        error=job_data.get("error"),
     )
