@@ -13,12 +13,12 @@ from app.storage import create_job, get_job
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Read the connection address supplied by Docker Compose.
-    # Create one client for this API process, rather than one per request.
+    # Read connection address supplied by Docker Compose
+    # Create client
     app.state.redis = Redis.from_url(
         os.environ["REDIS_URL"],
 
-        # Return Redis strings as Python strings instead of bytes.
+        # Return Redis strings as Python strings instead of bytes
         decode_responses=True,
 
         # Limit how long connecting and individual socket operations can wait.
@@ -27,14 +27,12 @@ async def lifespan(app: FastAPI):
     )
 
     try:
-        # FastAPI serves requests while execution is paused at this yield.
         yield
     finally:
-        # Release the client's connections when the API shuts down.
+        # Release client's connections when API shuts down
         await app.state.redis.aclose()
 
 
-# Register our startup/shutdown lifecycle with FastAPI.
 app = FastAPI(lifespan=lifespan)
 
 
@@ -43,8 +41,7 @@ async def redis_error_handler(
     request: Request,
     exc: RedisError,
 ):
-    # Turn unhandled Redis errors from endpoints into a consistent response.
-    # The parameters are required by the exception-handler interface.
+    # Turn unhandled Redis errors from endpoints into a consistent response
     return JSONResponse(
         status_code=503,
         content={"detail": "Redis is unavailable"},
@@ -53,7 +50,7 @@ async def redis_error_handler(
 
 @app.get("/health")
 async def health(request: Request):
-    # Send an actual Redis command to check dependency connectivity.
+    # Send Redis command to check dependency connectivity
     await request.app.state.redis.ping()
 
     return {"status": "ok", "redis": "connected"}
@@ -62,15 +59,12 @@ async def health(request: Request):
 @app.post(
     "/jobs",
 
-    # Validate and serialize our returned data using this response model.
+    # Validate and serialize returned data
     response_model=JobAccepted,
 
-    # Accepted for later processing; execution hasn't happened yet.
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def submit_job(body: JobCreate, request: Request):
-    # FastAPI validates the JSON body before calling this function.
-    # Request gives us access to the application's shared Redis client.
     job_id = await create_job(request.app.state.redis, body)
 
     return JobAccepted(id=job_id, status="queued")
@@ -78,12 +72,9 @@ async def submit_job(body: JobCreate, request: Request):
 
 @app.get("/jobs/{job_id}", response_model=JobDetails)
 async def read_job(job_id: UUID, request: Request):
-    # FastAPI validates the URL parameter as a UUID.
-    # Convert it to its standard string form to construct the Redis key.
     job = await get_job(request.app.state.redis, str(job_id))
 
     if job is None:
-        # A validly formatted ID can still refer to a nonexistent job.
         raise HTTPException(status_code=404, detail="Job not found")
 
     return job

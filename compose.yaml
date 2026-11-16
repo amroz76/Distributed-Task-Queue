@@ -21,11 +21,9 @@ services:
         condition: service_healthy
 
   worker:
-    # Package the same Python code as the API.
     build: .
 
     # Override the Dockerfile's default Uvicorn command.
-    # "-m" runs app/worker.py as a Python module.
     command: ["python", "-m", "app.worker"]
     environment:
       REDIS_URL: redis://redis:6379/0
@@ -34,7 +32,7 @@ services:
         condition: service_healthy
 
     # No published port is needed: workers initiate connections to Redis
-    # and do not accept incoming HTTP requests.
+    # and do not accept incoming HTTP requests
 
 
 volumes:
